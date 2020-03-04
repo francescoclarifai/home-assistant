@@ -14,11 +14,15 @@ import homeassistant.helpers.config_validation as cv
 
 DOMAIN = "clarifai"
 CONF_MODEL_NAME = "model_name"
+CONF_NUM_CONCEPTS = "num_concepts"
+CONF_MIN_CONFIDENCE = "min_confidence"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_API_KEY): cv.string,
         vol.Optional(CONF_MODEL_NAME, default="general"): cv.string,
+        vol.Optional(CONF_NUM_CONCEPTS, default=5): cv.positive_int,
+        vol.Optional(CONF_MIN_CONFIDENCE, default=0.9): cv.small_float,
     }
 )
 
@@ -33,7 +37,11 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     for camera in config[CONF_SOURCE]:
         entities.append(
             ClarifaiClassificationEntity(
-                camera[CONF_ENTITY_ID], model, config[CONF_MODEL_NAME]
+                camera[CONF_ENTITY_ID],
+                model,
+                config[CONF_MODEL_NAME],
+                num_concepts=config[CONF_NUM_CONCEPTS],
+                min_confidence=config[CONF_MIN_CONFIDENCE],
             )
         )
 
@@ -43,11 +51,13 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 class ClarifaiClassificationEntity(ImageProcessingEntity):
     """Clarifai classification entity."""
 
-    def __init__(self, camera_entity, model, name=None):
+    def __init__(self, camera_entity, model, name, num_concepts=5, min_confidence=0.5):
         """Initialize entity."""
         super().__init__()
         self._predictions = {}
         self._model = model
+        self._num_concepts = num_concepts
+        self._min_confidence = min_confidence
         self._camera = camera_entity
         self._state = None
 
@@ -76,11 +86,15 @@ class ClarifaiClassificationEntity(ImageProcessingEntity):
         predictions = {}
         if "concepts" in response["outputs"][0]["data"].keys():  # classifier
             results = response["outputs"][0]["data"]["concepts"]
-            for concept in results[:5]:
+            for concept in results[: self._num_concepts]:
+                if concept["value"] < self._min_confidence:
+                    break
                 predictions[concept["name"]] = round(concept["value"], 2)
         elif "regions" in response["outputs"][0]["data"].keys():  # detector
             results = response["outputs"][0]["data"]["regions"]
             for ii, region in enumerate(results):
+                if region["data"]["concepts"][0]["value"] < self._min_confidence:
+                    break
                 predictions["detection {}".format(ii)] = region["data"]["concepts"][0][
                     "name"
                 ]
