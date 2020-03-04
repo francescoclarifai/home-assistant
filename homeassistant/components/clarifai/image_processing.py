@@ -61,7 +61,8 @@ class ClarifaiClassificationEntity(ImageProcessingEntity):
             bytearray(image), min_value=0.5, max_concepts=5
         )
         predictions = {}
-        for concept in response["outputs"][0]["data"]["concepts"]:
+        results = response["outputs"][0]["data"].get("concepts", [])
+        for concept in results:
             predictions[concept["name"]] = concept["value"]
         self._predictions = predictions
         self._state = 1
