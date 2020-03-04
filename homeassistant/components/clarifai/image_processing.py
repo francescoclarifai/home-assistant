@@ -3,6 +3,7 @@ from clarifai.rest import ClarifaiApp
 import voluptuous as vol
 
 from homeassistant.components.image_processing import (
+    ATTR_ENTITY_ID,
     CONF_ENTITY_ID,
     CONF_SOURCE,
     PLATFORM_SCHEMA,
@@ -16,6 +17,10 @@ DOMAIN = "clarifai"
 CONF_MODEL_NAME = "model_name"
 CONF_NUM_CONCEPTS = "num_concepts"
 CONF_MIN_CONFIDENCE = "min_confidence"
+
+EVENT_FOUND_OBJECT = "image_processing.found_object"
+
+ATTR_OBJECT = "object"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -98,6 +103,15 @@ class ClarifaiClassificationEntity(ImageProcessingEntity):
                 predictions["detection {}".format(ii)] = region["data"]["concepts"][0][
                     "name"
                 ]
+                self.hass.async_add_job(
+                    self.hass.bus.async_fire,
+                    EVENT_FOUND_OBJECT,
+                    {
+                        ATTR_OBJECT: region["data"]["concepts"][0]["name"],
+                        ATTR_ENTITY_ID: self.entity_id,
+                    },
+                )
+
         else:
             pass
 
